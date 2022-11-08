@@ -12,4 +12,5 @@ The purpose of this project is to provide homeowners and businesses with a fully
 ## File Structure
 > **Note** changes may be made to the filestructure before the final commit
 >
-![FileStructure](https://user-images.githubusercontent.com/31903701/200472996-14eec346-f974-4f3b-a737-27f11dabed9b.png)
+![FileStructure](https://user-images.githubusercontent.com/31903701/200474149-eab95e3f-3716-4895-8599-62ac2f807a67.png)
+
