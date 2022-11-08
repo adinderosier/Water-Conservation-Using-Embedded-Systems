@@ -11,7 +11,7 @@ The purpose of this project is to provide homeowners and businesses with a fully
 * CMake: https://cmake.org/download/
 * GCC: [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/) or [MinGW-GCC](https://www.msys2.org/)
 ## File/Folder Structure
-> **Note** changes may be made to the filestructure before the final commit
+> **Note** changes may be made to the file structure before the final commit
 >
 ![FileStructure](https://user-images.githubusercontent.com/31903701/200474149-eab95e3f-3716-4895-8599-62ac2f807a67.png)
 
