@@ -17,7 +17,7 @@
 
 #define MAX_RX_STR_LEN 32
 
-xQueueHandle uart_queue = NULL;
+QueueHandle_t uart_queue = NULL;
 
 void heartbeat_task(void *pvParameters)
 {
