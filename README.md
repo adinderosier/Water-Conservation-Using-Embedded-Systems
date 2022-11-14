@@ -11,7 +11,7 @@ The purpose of this project is to provide homeowners and businesses with a fully
 * GNU Arm Embedded Toolchain: https://developer.arm.com/downloads/-/gnu-rm
 * FreeRTOS (included as a gitmodule): https://github.com/FreeRTOS/FreeRTOS-Kernel
 * CMake: https://cmake.org/download/
-* GCC: [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/) or [MinGW-GCC](https://www.msys2.org/)
+* GCC: [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/) or [MinGW-GCC](https://www.mingw-w64.org/downloads/)
 ## File/Folder Structure
 > **Note** changes may be made to the file structure before the final commit
 >
