@@ -45,27 +45,9 @@ void uart_task(void *pvParameters)
     uart_set_irq_enables(UART_ID, true, false);
 
     // Setup the UART module to continuous mode with a period of 30s
-    uart_puts(UART_ID, "c,30");
+    uart_puts(UART_ID, "c,1");
 
     vTaskDelay(100);
-
-    // Wait for a response from the UART module
-    if (uart_queue != NULL)
-    {
-        char *queue_buffer = calloc(MAX_RX_STR_LEN, sizeof(char));
-        uint8_t queue_buffer_index = 0;
-        char cIn;
-        do
-        {
-            if (xQueueReceive(uart_queue, &cIn, (TickType_t)10) == pdPASS)
-            {
-                queue_buffer[queue_buffer_index++] = cIn;
-            }
-        } while (cIn != '\0');
-
-        printf("<uart_task> Received: %s\n", queue_buffer);
-        free(queue_buffer);
-    }
 
     while (true)
     {
@@ -82,7 +64,10 @@ void uart_task(void *pvParameters)
                 }
             } while (cIn != '\0');
 
-            printf("<uart_task> Received: %s\n", queue_buffer);
+            char* volume = strtok_r(queue_buffer, ",", &queue_buffer);
+            char* flow = strtok_r(queue_buffer, ",", &queue_buffer);
+            printf("<uart_task> Volume: %s\n", volume);
+            printf("<uart_task> Flow: %s\n", flow);
             free(queue_buffer);
         }
     }
@@ -107,18 +92,6 @@ void uart_rx_isr()
         else
         {
             xQueueSendFromISR(uart_queue, &ch, &xHigherPriorityTaskWoken);
-        }
-
-        if (uart_is_writable(UART_ID))
-        {
-            if (ch == '\r')
-            {
-                uart_putc(UART_ID, '\r');
-            }
-            else
-            {
-                uart_putc(UART_ID, ch);
-            }
         }
     }
 }
