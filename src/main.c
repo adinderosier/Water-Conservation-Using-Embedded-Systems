@@ -45,7 +45,7 @@ void uart_task(void *pvParameters)
     uart_set_irq_enables(UART_ID, true, false);
 
     // Setup the UART module to continuous mode with a period of 30s
-    uart_puts(UART_ID, "c,1");
+    uart_puts(UART_ID, "c,30");
 
     vTaskDelay(100);
 
