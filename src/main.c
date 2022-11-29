@@ -66,8 +66,11 @@ void uart_task(void *pvParameters)
 
             char* volume = strtok_r(queue_buffer, ",", &queue_buffer);
             char* flow = strtok_r(queue_buffer, ",", &queue_buffer);
-            printf("<uart_task> Volume: %s\n", volume);
-            printf("<uart_task> Flow: %s\n", flow);
+            if (atoi(flow) > 0)
+            {
+                printf("<uart_task> Volume: %s\n", volume);
+                printf("<uart_task> Flow: %s\n", flow);
+            }
             free(queue_buffer);
         }
     }
@@ -158,7 +161,7 @@ int main()
     printf("<main> Starting FreeRTOS...\n");
 
     xTaskCreate(heartbeat_task, "Heartbeat Task", 256, NULL, 1, NULL);
-    xTaskCreate(uart_task, "UART Task", 256, NULL, 2, NULL);
+    xTaskCreate(uart_task, "UART Task", 256, NULL, 1, NULL);
 
     vTaskStartScheduler();
 
