@@ -17,22 +17,201 @@
 
 #define MAX_RX_STR_LEN 32
 
+#define BUF_SIZE 2048
+#define MAX_ITERATIONS 10
+#define TCP_PORT 27017
+#define POLL_TIME_S 5
+
 QueueHandle_t uart_queue = NULL;
+QueueHandle_t tcp_queue = NULL;
+
+typedef struct TCP_CLIENT_T_
+{
+    struct tcp_pcb *tcp_pcb;
+    ip_addr_t remote_addr;
+    uint8_t buffer[BUF_SIZE];
+    int buffer_len;
+    int sent_len;
+    bool complete;
+    int run_count;
+    bool connected;
+} TCP_CLIENT_T;
+
+static TCP_CLIENT_T *tcp_client_init(void)
+{
+    TCP_CLIENT_T *state = calloc(1, sizeof(TCP_CLIENT_T));
+    if (!state)
+    {
+        printf("<tcp_client_init> Failed to allocate state\n");
+        return NULL;
+    }
+    ip4addr_aton(DATABASE_SERVER_IP, &state->remote_addr);
+    return state;
+}
+
+static err_t tcp_client_close(void *arg)
+{
+    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    err_t err = ERR_OK;
+    if (state->tcp_pcb != NULL)
+    {
+        tcp_arg(state->tcp_pcb, NULL);
+        tcp_poll(state->tcp_pcb, NULL, 0);
+        tcp_sent(state->tcp_pcb, NULL);
+        tcp_recv(state->tcp_pcb, NULL);
+        tcp_err(state->tcp_pcb, NULL);
+        err = tcp_close(state->tcp_pcb);
+        if (err != ERR_OK)
+        {
+            printf("<tcp_client_close> Close failed %d, calling abort\n", err);
+            tcp_abort(state->tcp_pcb);
+            err = ERR_ABRT;
+        }
+        state->tcp_pcb = NULL;
+    }
+    return err;
+}
+
+// Called with results of operation
+static err_t tcp_result(void *arg, int status)
+{
+    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    if (status == 0)
+    {
+        printf("test success\n");
+    }
+    else
+    {
+        printf("test failed %d\n", status);
+    }
+    state->complete = true;
+    return tcp_client_close(arg);
+}
+
+static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
+{
+    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    if (err != ERR_OK)
+    {
+        printf("<tcp_client_connected> Connect failed %d\n", err);
+        return ERR_TIMEOUT;
+    }
+    state->connected = true;
+    printf("<tcp_client_connected> Waiting for buffer from server\n");
+    return ERR_OK;
+}
+
+static void tcp_client_err(void *arg, err_t err)
+{
+    if (err != ERR_ABRT)
+    {
+        printf("<tcp_client_err> %d\n", err);
+        tcp_result(arg, err);
+    }
+}
+
+static err_t tcp_client_poll(void *arg, struct tcp_pcb *tpcb)
+{
+    printf("<tcp_client_poll>\n");
+    return tcp_result(arg, -1); // no response is an error?
+}
+
+static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
+{
+    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    printf("<tcp_client_sent> %u\n", len);
+    state->sent_len += len;
+
+    if (state->sent_len >= BUF_SIZE)
+    {
+
+        state->run_count++;
+        if (state->run_count >= MAX_ITERATIONS)
+        {
+            tcp_result(arg, 0);
+            return ERR_OK;
+        }
+
+        // We should receive a new buffer from the server
+        state->buffer_len = 0;
+        state->sent_len = 0;
+        printf("<tcp_client_sent> Waiting for buffer from server\n");
+    }
+
+    return ERR_OK;
+}
+
+static bool tcp_client_open(void *pvParameters)
+{
+    TCP_CLIENT_T *state = (TCP_CLIENT_T *)pvParameters;
+    printf("<tcp_client_open> Connecting to %s port %u\n", ip4addr_ntoa(&state->remote_addr), TCP_PORT);
+    state->tcp_pcb = tcp_new_ip_type(IP_GET_TYPE(&state->remote_addr));
+    if (!state->tcp_pcb)
+    {
+        printf("<tcp_client_open> Failed to create pcb\n");
+        return false;
+    }
+
+    tcp_arg(state->tcp_pcb, state);
+    tcp_poll(state->tcp_pcb, tcp_client_poll, POLL_TIME_S * 2);
+    tcp_sent(state->tcp_pcb, tcp_client_sent);
+    tcp_err(state->tcp_pcb, tcp_client_err);
+
+    state->buffer_len = 0;
+
+    // cyw43_arch_lwip_begin/end should be used around calls into lwIP to ensure correct locking.
+    // You can omit them if you are in a callback from lwIP. Note that when using pico_cyw_arch_poll
+    // these calls are a no-op and can be omitted, but it is a good practice to use them in
+    // case you switch the cyw43_arch type later.
+    cyw43_arch_lwip_begin();
+    err_t err = tcp_connect(state->tcp_pcb, &state->remote_addr, TCP_PORT, tcp_client_connected);
+    cyw43_arch_lwip_end();
+
+    return err == ERR_OK;
+}
 
 void heartbeat_task(void *pvParameters)
 {
+    const TickType_t xDelay = 500 / portTICK_PERIOD_MS;    
+    
     while (true)
     {
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-        vTaskDelay(100);
+        vTaskDelay(xDelay);
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-        vTaskDelay(100);
+        vTaskDelay(xDelay);
     }
+}
+
+void database_task(void *pvParameters)
+{
+    TCP_CLIENT_T *state = tcp_client_init();
+
+    if (!state)
+    {
+        return;
+    }
+
+    if (!tcp_client_open(state))
+    {
+        tcp_result(state, -1);
+        return;
+    }
+    while (!state->complete)
+    {
+        // if you are using pico_cyw43_arch_poll, then you must poll periodically from your
+        // main loop (not from a timer) to check for WiFi driver or lwIP work that needs to be done.
+        cyw43_arch_poll();
+        sleep_ms(1);
+
+
+    }
+    free(state);
 }
 
 void uart_task(void *pvParameters)
 {
-    // Set up a queue for transferring command from the 
+    // Set up a queue for transferring command from the
     // UART interrupt handler to the UART task.
     uart_queue = xQueueCreate(80, sizeof(char));
 
@@ -44,14 +223,15 @@ void uart_task(void *pvParameters)
     // Now enable the UART to send interrupts - RX only
     uart_set_irq_enables(UART_ID, true, false);
 
-    // Setup the UART module to continuous mode with a period of 30s
-    uart_puts(UART_ID, "c,30");
+    // Setup the UART module to continuous mode with a period of 1s
+    uart_puts(UART_ID, "c,1");
+    uart_puts(UART_ID, "Clear");
 
     vTaskDelay(100);
 
     while (true)
     {
-        if(uxQueueMessagesWaiting(uart_queue) > 0)
+        if (uxQueueMessagesWaiting(uart_queue) > 0)
         {
             char *queue_buffer = calloc(MAX_RX_STR_LEN, sizeof(char));
             uint8_t queue_buffer_index = 0;
@@ -64,13 +244,19 @@ void uart_task(void *pvParameters)
                 }
             } while (cIn != '\0');
 
-            char* volume = strtok_r(queue_buffer, ",", &queue_buffer);
-            char* flow = strtok_r(queue_buffer, ",", &queue_buffer);
-            if (atoi(flow) > 0)
+            char *volume = strtok_r(queue_buffer, ",", &queue_buffer);
+            char *flow = strtok_r(queue_buffer, ",", &queue_buffer);
+
+            if (atof(flow) == 0 && atof(volume) > 0)
             {
-                printf("<uart_task> Volume: %s\n", volume);
-                printf("<uart_task> Flow: %s\n", flow);
+                //char *database_buffer = calloc(MAX_RX_STR_LEN, sizeof(char));
+                printf("Volume: %s, Flow: %s\n", volume, flow);
+                //sprintf(database_buffer, "Volume: %s, Flow: %s\n", volume, flow);
+                //xQueueSendToBack(tcp_queue, &database_buffer, 0);
+                uart_puts(UART_ID, "Clear");
+                //free(database_buffer);
             }
+
             free(queue_buffer);
         }
     }
@@ -162,9 +348,10 @@ int main()
 
     xTaskCreate(heartbeat_task, "Heartbeat Task", 256, NULL, 1, NULL);
     xTaskCreate(uart_task, "UART Task", 256, NULL, 1, NULL);
+    //xTaskCreate(database_task, "Database Task", 256, NULL, 1, NULL);
 
     vTaskStartScheduler();
-
+    
     while (1)
     {
     };

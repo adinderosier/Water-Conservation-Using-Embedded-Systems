@@ -10,6 +10,7 @@ set(WIFI_PASSWORD "${WIFI_PASSWORD}" CACHE INTERNAL "WiFi password")
 target_compile_definitions(main PRIVATE
         WIFI_SSID=\"${WIFI_SSID}\"
         WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
+        DATABASE_SERVER_IP=\"${DATABASE_SERVER_IP}\"
         )
 
 target_include_directories(main PRIVATE
