@@ -4,7 +4,7 @@ set(PICO_BOARD pico_w)
 
 include(pico_sdk_import.cmake)
 
-project(ESET-2022)
+project(IoT-Water-Conservation-Senior-Project)
 
 pico_sdk_init()
 

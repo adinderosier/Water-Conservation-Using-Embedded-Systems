@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.12)
 
 add_executable(main
         main.c
+        pico_tasks.c
+        drivers/uart/uart_driver.c
+        drivers/tcp/tcp_driver.c
         )
 
 set(WIFI_SSID "${WIFI_SSID}" CACHE INTERNAL "WiFi SSID")
