@@ -10,11 +10,6 @@
 // Pico includes
 #include "pico/stdlib.h"
 #include "pico/stdio.h"
-#include "pico/cyw43_arch.h"
-#include "hardware/gpio.h"
-#include "hardware/uart.h"
-#include "lwip/pbuf.h"
-#include "lwip/tcp.h"
 
 // Driver includes
 #include "drivers/uart/uart_driver.h"
