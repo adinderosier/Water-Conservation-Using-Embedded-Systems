@@ -28,7 +28,7 @@
  *
  * @return None.
  */
-void vInitUART(void *pvParameters);
+void vInitUART(__unused void *pvParameters);
 
 /**
  * @brief Interrupt service routine for UART receive.

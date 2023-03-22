@@ -36,7 +36,7 @@ extern QueueHandle_t xQueueUART;
  *
  * @return None.
  */
-void vInitUART(void *pvParameters)
+void vInitUART(__unused void *pvParameters)
 {
     // Set up our UART with the required speed.
     uart_init(UART_ID, BAUD_RATE);

@@ -8,12 +8,13 @@ add_executable(main
         )
 
 set(WIFI_SSID "${WIFI_SSID}" CACHE INTERNAL "WiFi SSID")
-set(WIFI_PASSWORD "${WIFI_PASSWORD}" CACHE INTERNAL "WiFi password")
+set(WIFI_PASSWORD "${WIFI_PASSWORD}" CACHE INTERNAL "WiFi Password")
+set(CONTROLLER_IP "${CONTROLLER_IP}" CACHE INTERNAL "Controller IP")
 
 target_compile_definitions(main PRIVATE
         WIFI_SSID=\"${WIFI_SSID}\"
         WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
-        DATABASE_SERVER_IP=\"${DATABASE_SERVER_IP}\"
+        CONTROLLER_IP=\"${CONTROLLER_IP}\"
         )
 
 target_include_directories(main PRIVATE

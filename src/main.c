@@ -43,8 +43,8 @@ int main()
 
     printf("<main> Starting FreeRTOS...\n");
 
-    xTaskCreate(vTaskHeartbeat, "Heartbeat Task", 256, (void *)HEARTBEAT_MS, 1, NULL);
-    xTaskCreate(vTaskUART, "UART Task", 1024, NULL, 1, NULL);
+    xTaskCreate(vTaskHeartbeat, "Heartbeat Task", configMINIMAL_STACK_SIZE, (void *)HEARTBEAT_MS, 1, NULL);
+    xTaskCreate(vTaskUART, "UART Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
     // Set up a queue for transferring command from the
     // UART interrupt handler to the UART task.
