@@ -76,7 +76,7 @@ void __attribute__((interrupt)) ISR_UART_RX(void)
         // Replace '\r' with '\0'
         char toSend = (ch == '\r') ? '\0' : ch;
 
-        xQueueSendFromISR(xQueueUART, &toSend, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(xQueueUART, (void *)&toSend, &xHigherPriorityTaskWoken);
     }
 
     // Yield to a higher priority task if one was unblocked
