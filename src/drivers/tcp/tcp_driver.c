@@ -115,16 +115,16 @@ err_t xTCPClientClose(void *arg)
     return err;
 }
 
-err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
+err_t xTCPClientConnectedCallback(void *arg, struct tcp_pcb *tpcb, err_t err)
 {
     TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)arg;
     if (err != ERR_OK)
     {
-        printf("<tcp_client_connected> Connect failed %d\n", err);
+        printf("<xTCPClientConnectedCallback> Connection failed %d\n", err);
         return ERR_TIMEOUT;
     }
+    printf("<xTCPClientConnectedCallback> Connected to IP: %s\n", ip4addr_ntoa(&tcp_client->remote_addr));
     tcp_client->connected = true;
-    printf("<tcp_client_connected> Waiting for buffer from server\n");
     return ERR_OK;
 }
 
@@ -208,7 +208,7 @@ BaseType_t xTCPClientOpen(void *pvParameters)
     // these calls are a no-op and can be omitted, but it is a good practice to use them in
     // case you switch the cyw43_arch type later.
     cyw43_arch_lwip_begin();
-    err_t err = tcp_connect(tcp_client->tcp_pcb, &tcp_client->remote_addr, TCP_PORT, tcp_client_connected);
+    err_t err = tcp_connect(tcp_client->tcp_pcb, &tcp_client->remote_addr, TCP_PORT, xTCPClientConnectedCallback);
     cyw43_arch_lwip_end();
 
     return err == ERR_OK;
