@@ -11,25 +11,13 @@
 #include "pico/stdlib.h"
 #include "pico/stdio.h"
 #include "pico/cyw43_arch.h"
-#include "hardware/gpio.h"
-#include "hardware/uart.h"
+//#include "hardware/gpio.h"
+//#include "hardware/uart.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 
 // Driver includes
 #include "tcp_driver.h"
-
-/*typedef struct TCP_CLIENT_T_
-{
-    struct tcp_pcb *tcp_pcb;
-    ip_addr_t remote_addr;
-    uint8_t buffer[BUF_SIZE];
-    int buffer_len;
-    int sent_len;
-    bool complete;
-    int run_count;
-    bool connected;
-} TCP_CLIENT_T;*/
 
 /**
  * @brief Initializes the CYW43 Wi-Fi module in STA (station) mode and connects to a Wi-Fi network.
@@ -48,7 +36,7 @@
  * using the cyw43_arch_init_with_country function. This function also enables power management for the Wi-Fi module
  * using the cyw43_wifi_pm function.
  */
-BaseType_t xInitSTA(void *pvParameters)
+BaseType_t xInitSTA(__unused void *pvParameters)
 {
     if (cyw43_arch_init_with_country(CYW43_COUNTRY_USA))
     {
@@ -74,136 +62,154 @@ BaseType_t xInitSTA(void *pvParameters)
     }
 }
 
-/*static TCP_CLIENT_T *tcp_client_init(void)
+/**
+ * @brief Initializes a TCP client tcp_client and returns a pointer to the tcp_client.
+ *
+ * This function allocates memory for the TCP client tcp_client and initializes its remote address.
+ * It returns a pointer to the allocated tcp_client. If the memory allocation fails, the function returns NULL.
+ *
+ * @param pvParameters Unused parameter (required by FreeRTOS API).
+ *
+ * @return A pointer to the initialized TCP client tcp_client or NULL if memory allocation fails.
+ */
+TCP_CLIENT_T *xInitTCPClient(__unused void *pvParameters)
 {
-    TCP_CLIENT_T *state = calloc(1, sizeof(TCP_CLIENT_T));
-    if (!state)
+    // Allocate memory for the TCP client tcp_client
+    TCP_CLIENT_T *tcp_client = calloc(1, sizeof(TCP_CLIENT_T));
+    
+    // Check if memory allocation was successful
+    if (!tcp_client)
     {
-        printf("<tcp_client_init> Failed to allocate state\n");
+        // Memory allocation failed
+        printf("<xInitTCPClient> Failed to allocate tcp_client\n");
         return NULL;
     }
-    ip4addr_aton(DATABASE_SERVER_IP, &state->remote_addr);
-    return state;
+
+    // Initialize the TCP client remote address
+    ip4addr_aton(CONTROLLER_IP, &tcp_client->remote_addr);
+    
+    // return the TCP client struct
+    return tcp_client;
 }
 
-static err_t tcp_client_close(void *arg)
+err_t xTCPClientClose(void *arg)
 {
-    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)arg;
     err_t err = ERR_OK;
-    if (state->tcp_pcb != NULL)
+    if (tcp_client->tcp_pcb != NULL)
     {
-        tcp_arg(state->tcp_pcb, NULL);
-        tcp_poll(state->tcp_pcb, NULL, 0);
-        tcp_sent(state->tcp_pcb, NULL);
-        tcp_recv(state->tcp_pcb, NULL);
-        tcp_err(state->tcp_pcb, NULL);
-        err = tcp_close(state->tcp_pcb);
+        tcp_arg(tcp_client->tcp_pcb, NULL);
+        tcp_poll(tcp_client->tcp_pcb, NULL, 0);
+        tcp_sent(tcp_client->tcp_pcb, NULL);
+        tcp_recv(tcp_client->tcp_pcb, NULL);
+        tcp_err(tcp_client->tcp_pcb, NULL);
+        err = tcp_close(tcp_client->tcp_pcb);
         if (err != ERR_OK)
         {
-            printf("<tcp_client_close> Close failed %d, calling abort\n", err);
-            tcp_abort(state->tcp_pcb);
+            printf("<xTCPClientClose> Close failed %d, calling abort\n", err);
+            tcp_abort(tcp_client->tcp_pcb);
             err = ERR_ABRT;
         }
-        state->tcp_pcb = NULL;
+        tcp_client->tcp_pcb = NULL;
     }
     return err;
 }
 
-// Called with results of operation
-static err_t tcp_result(void *arg, int status)
+err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
 {
-    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
-    if (status == 0)
-    {
-        printf("test success\n");
-    }
-    else
-    {
-        printf("test failed %d\n", status);
-    }
-    state->complete = true;
-    return tcp_client_close(arg);
-}
-
-static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
-{
-    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)arg;
     if (err != ERR_OK)
     {
         printf("<tcp_client_connected> Connect failed %d\n", err);
         return ERR_TIMEOUT;
     }
-    state->connected = true;
+    tcp_client->connected = true;
     printf("<tcp_client_connected> Waiting for buffer from server\n");
     return ERR_OK;
 }
 
-static void tcp_client_err(void *arg, err_t err)
+void vTCPClientErrCallback(void *arg, err_t err)
 {
-    if (err != ERR_ABRT)
-    {
-        printf("<tcp_client_err> %d\n", err);
-        tcp_result(arg, err);
-    }
+    printf("<xTCPClientErrCallback> %d\n", err);
+    xTCPClientClose(arg);
 }
 
-static err_t tcp_client_poll(void *arg, struct tcp_pcb *tpcb)
+err_t xTCPClientPollCallback(void *arg, struct tcp_pcb *tpcb)
 {
-    printf("<tcp_client_poll>\n");
-    return tcp_result(arg, -1); // no response is an error?
-}
-
-static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
-{
-    TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
-    printf("<tcp_client_sent> %u\n", len);
-    state->sent_len += len;
-
-    if (state->sent_len >= BUF_SIZE)
-    {
-
-        state->run_count++;
-        if (state->run_count >= MAX_ITERATIONS)
-        {
-            tcp_result(arg, 0);
-            return ERR_OK;
-        }
-
-        // We should receive a new buffer from the server
-        state->buffer_len = 0;
-        state->sent_len = 0;
-        printf("<tcp_client_sent> Waiting for buffer from server\n");
-    }
-
+    printf("<xTCPClientPollCallback>\n");
     return ERR_OK;
 }
 
-static bool tcp_client_open(void *pvParameters)
+err_t xTCPClientSentCallback(void *arg, struct tcp_pcb *tpcb, u16_t len)
 {
-    TCP_CLIENT_T *state = (TCP_CLIENT_T *)pvParameters;
-    printf("<tcp_client_open> Connecting to %s port %u\n", ip4addr_ntoa(&state->remote_addr), TCP_PORT);
-    state->tcp_pcb = tcp_new_ip_type(IP_GET_TYPE(&state->remote_addr));
-    if (!state->tcp_pcb)
+    TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)arg;
+    printf("<xTCPClientSentCallback> %u\n", len);
+    tcp_client->sent_len -= len;
+    return ERR_OK;
+}
+
+err_t xTCPClientRecvCallback(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+    
+    if (!p) {
+        printf("<xTCPClientRecvCallback> Connection closed\n");
+        xTCPClientClose(arg);
+        return err;
+    } 
+
+    cyw43_arch_lwip_check();
+
+    uint8_t *buf = p->payload;
+
+    buf[p->tot_len]='\0';
+
+    printf("<xTCPClientRecvCallback> Received data: %s\n", buf);
+    
+    tcp_recved(tpcb, p->tot_len);
+
+    pbuf_free(p);
+
+    return err;
+}
+
+
+BaseType_t xTCPClientOpen(void *pvParameters)
+{
+    // Cast the void pointer to a TCP_CLIENT_T pointer
+    TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)pvParameters;
+
+    printf("<xTCPClientOpen> Connecting to %s port %u\n", ip4addr_ntoa(&tcp_client->remote_addr), TCP_PORT);
+    tcp_client->tcp_pcb = tcp_new_ip_type(IP_GET_TYPE(&tcp_client->remote_addr));
+    if (!tcp_client->tcp_pcb)
     {
-        printf("<tcp_client_open> Failed to create pcb\n");
-        return false;
+        printf("<xTCPClientOpen> Failed to create pcb\n");
+        return pdFALSE;
     }
 
-    tcp_arg(state->tcp_pcb, state);
-    tcp_poll(state->tcp_pcb, tcp_client_poll, POLL_TIME_S * 2);
-    tcp_sent(state->tcp_pcb, tcp_client_sent);
-    tcp_err(state->tcp_pcb, tcp_client_err);
+    tcp_client->connected=false;
+    tcp_client->sent_len=0;
 
-    state->buffer_len = 0;
+    // Set the TCP client tcp_client as the argument to the TCP callbacks
+    tcp_arg(tcp_client->tcp_pcb, tcp_client);
+
+    // Set the TCP poll callback
+    tcp_poll(tcp_client->tcp_pcb, xTCPClientPollCallback, POLL_TIME_S * 2);
+    
+    // Set the TCP sent callback
+    tcp_sent(tcp_client->tcp_pcb, xTCPClientSentCallback);
+    
+    // Set the TCP received callback
+    tcp_recv(tcp_client->tcp_pcb, xTCPClientRecvCallback);
+
+    // Set the TCP error callback
+    tcp_err(tcp_client->tcp_pcb, vTCPClientErrCallback);
 
     // cyw43_arch_lwip_begin/end should be used around calls into lwIP to ensure correct locking.
     // You can omit them if you are in a callback from lwIP. Note that when using pico_cyw_arch_poll
     // these calls are a no-op and can be omitted, but it is a good practice to use them in
     // case you switch the cyw43_arch type later.
     cyw43_arch_lwip_begin();
-    err_t err = tcp_connect(state->tcp_pcb, &state->remote_addr, TCP_PORT, tcp_client_connected);
+    err_t err = tcp_connect(tcp_client->tcp_pcb, &tcp_client->remote_addr, TCP_PORT, tcp_client_connected);
     cyw43_arch_lwip_end();
 
     return err == ERR_OK;
 }
-*/
