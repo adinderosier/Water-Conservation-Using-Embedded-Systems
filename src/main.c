@@ -38,7 +38,7 @@ int main()
     if(xInitSTA(NULL) != pdPASS)
     {
         printf("<main> WiFi failed to initialise!\n");
-        //return pdFAIL;
+        exit(1);
     }
 
     printf("<main> Starting FreeRTOS...\n");
