@@ -7,9 +7,11 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+#include <stream_buffer.h>
 
 // Standard includes
 #include <stdio.h>
+#include <string.h>
 
 // Pico includes
 //#include "pico/stdlib.h"
@@ -22,13 +24,16 @@
 
 // Driver includes
 #include "drivers/uart/uart_driver.h"
+#include "drivers/tcp/tcp_driver.h"
 
 // Project includes
 #include "pico_tasks.h"
 
-// Queue handles
-extern QueueHandle_t xQueueTCP; // Queue handle for TCP messages (defined elsewhere)
+// Queue Handles
 extern QueueHandle_t xQueueUART; // Queue handle for UART messages (defined elsewhere)
+
+// Stream Buffers
+extern StreamBufferHandle_t xStreamBufferTCP; // Stream buffer handle for TCP messages (defined elsewhere)
 
 /**
  * @brief Task that toggles an LED at a regular interval.
@@ -90,19 +95,19 @@ void vTaskUART(__unused void *pvParameters)
     uart_set_irq_enables(UART_ID, true, false);
 
     // Used to calculate average flow
-    double xAverageFlow = 0;
+    float xAverageFlow = 0;
 
     // Used to clear the queue and total volume on device
     BaseType_t xClearFlag = pdTRUE;
 
-    for (;;)
+    for (;;) 
     {
         // Check if there is any data in the UART queue
         if (uxQueueMessagesWaiting(xQueueUART) > 0)
         {
             // Allocate memory for buffer to hold incoming data
             char *xQueueBuffer = calloc(MAX_RX_STR_LEN, sizeof(char));
-            uint8_t xQueueBufferIndex = 0;
+            BaseType_t xQueueBufferIndex = 0;
             char cIn;
 
             // Loop until a null character is found
@@ -126,6 +131,11 @@ void vTaskUART(__unused void *pvParameters)
                 if( xAverageFlow > 0)
                 {
                     printf("<vTaskUART> Volume: %s, Average Flow: %.2f\n", xTotalVolume, xAverageFlow);
+                    char * xSendBuffer = calloc(MAX_RX_STR_LEN, sizeof(char));
+                    snprintf(xSendBuffer, sizeof(char) * MAX_RX_STR_LEN, "Volume: %s, Flow: %.2f", xTotalVolume, xAverageFlow);
+                    printf("<vTaskUART> Sending to TCP queue: %s\n", xSendBuffer);
+                    xStreamBufferSend(xStreamBufferTCP, (void *)xSendBuffer, strlen(xSendBuffer), 0);
+                    free(xSendBuffer);
                 }
                 // Clear the queue and reset the average flow
                 xQueueReset(xQueueUART);
@@ -162,26 +172,55 @@ void vTaskUART(__unused void *pvParameters)
     }
 }
 
-/*void database_task(void *pvParameters)
+void vTaskTCP(__unused void *pvParameters)
 {
-    TCP_CLIENT_T *state = tcp_client_init();
+    const TickType_t xDelay = pdMS_TO_TICKS(500);
 
-    if (!state)
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    TCP_CLIENT_T *tcp_client = xInitTCPClient(NULL);
+
+    if(tcp_client == NULL)
     {
-        return;
+        printf("Failed to create TCP client.\nExiting...\n");
+        exit(1);
     }
 
-    if (!tcp_client_open(state))
+    if(!xTCPClientOpen(tcp_client))
     {
-        tcp_result(state, -1);
-        return;
+        printf("Failed to open TCP client.\nExiting...\n");
+        exit(1);
     }
-    while (!state->complete)
+
+    for(;;)
     {
         // if you are using pico_cyw43_arch_poll, then you must poll periodically from your
         // main loop (not from a timer) to check for WiFi driver or lwIP work that needs to be done.
         cyw43_arch_poll();
-        sleep_ms(1);
+        vTaskDelay(pdMS_TO_TICKS(1));
+
+        
+        char *xQueueBuffer = calloc(MAX_RX_STR_LEN, sizeof(char));
+
+        if(xStreamBufferReceive(xStreamBufferTCP, (void *)xQueueBuffer, MAX_RX_STR_LEN, 0) > 0)
+        {
+
+            printf("<vTaskTCP> Sending data to server: %s\n", xQueueBuffer);
+
+            tcp_write(tcp_client->tcp_pcb, xQueueBuffer, strlen(xQueueBuffer), TCP_WRITE_FLAG_COPY);
+            tcp_client->sent_len = strlen(xQueueBuffer);
+            tcp_output(tcp_client->tcp_pcb);
+
+            while(tcp_client->sent_len > 0)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+        }
+
+        free(xQueueBuffer);
+
+        xTaskDelayUntil(&xLastWakeTime, xDelay);
     }
-    free(state);
-}*/
+
+    xTCPClientClose(tcp_client);
+}

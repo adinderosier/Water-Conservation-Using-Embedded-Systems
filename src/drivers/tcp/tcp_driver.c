@@ -92,9 +92,9 @@ TCP_CLIENT_T *xInitTCPClient(__unused void *pvParameters)
     return tcp_client;
 }
 
-err_t xTCPClientClose(void *arg)
+err_t xTCPClientClose(void *pvParameters)
 {
-    TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)arg;
+    TCP_CLIENT_T *tcp_client = (TCP_CLIENT_T *)pvParameters;
     err_t err = ERR_OK;
     if (tcp_client->tcp_pcb != NULL)
     {
@@ -136,7 +136,6 @@ void vTCPClientErrCallback(void *arg, err_t err)
 
 err_t xTCPClientPollCallback(void *arg, struct tcp_pcb *tpcb)
 {
-    printf("<xTCPClientPollCallback>\n");
     return ERR_OK;
 }
 

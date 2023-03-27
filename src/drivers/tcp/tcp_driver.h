@@ -48,6 +48,10 @@ BaseType_t xInitSTA(__unused void *pvParameters);
  *
  * @return A pointer to the initialized TCP client state or NULL if memory allocation fails.
  */
-static TCP_CLIENT_T *xInitTCPClient(__unused void *pvParameters);
+TCP_CLIENT_T *xInitTCPClient(__unused void *pvParameters);
+
+BaseType_t xTCPClientOpen(void *pvParameters);
+
+err_t xTCPClientClose(void *pvParameters);
 
 #endif /* TCP_DRIVER_H_ */

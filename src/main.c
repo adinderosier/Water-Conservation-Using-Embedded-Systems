@@ -3,6 +3,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+#include <stream_buffer.h>
 
 // Standard includes
 #include <stdio.h>
@@ -20,8 +21,8 @@
 
 #define HEARTBEAT_MS 500
 
-QueueHandle_t xQueueTCP = NULL;
 QueueHandle_t xQueueUART = NULL;
+StreamBufferHandle_t xStreamBufferTCP = NULL;
 
 int main()
 {
@@ -45,14 +46,13 @@ int main()
 
     xTaskCreate(vTaskHeartbeat, "Heartbeat Task", configMINIMAL_STACK_SIZE, (void *)HEARTBEAT_MS, 1, NULL);
     xTaskCreate(vTaskUART, "UART Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+    xTaskCreate(vTaskTCP, "TCP Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
     // Set up a queue for transferring command from the
     // UART interrupt handler to the UART task.
     xQueueUART = xQueueCreate(80, sizeof(char));
 
-    // Set up a queue for transferring command from the
-    // UART task to the TCP task.
-    xQueueTCP = xQueueCreate(80, sizeof(char));
+    xStreamBufferTCP = xStreamBufferCreate(MAX_RX_STR_LEN, 4);
 
     vTaskStartScheduler();
 

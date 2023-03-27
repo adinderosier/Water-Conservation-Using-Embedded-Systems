@@ -34,4 +34,6 @@ void vTaskHeartbeat(void *pvParameters);
  */
 void vTaskUART(__unused void *pvParameters);
 
+void vTaskTCP(__unused void *pvParameters);
+
 #endif /* PICO_TASKS_H_ */
