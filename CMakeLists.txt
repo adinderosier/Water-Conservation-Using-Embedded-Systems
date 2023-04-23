@@ -4,7 +4,7 @@ set(PICO_BOARD pico_w)
 
 include(pico_sdk_import.cmake)
 
-project(IoT-Water-Conservation-Senior-Project)
+project(Water-Conservation-Using-Embedded-Systems)
 
 pico_sdk_init()
 
