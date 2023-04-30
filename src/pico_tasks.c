@@ -14,13 +14,13 @@
 #include <string.h>
 
 // Pico includes
-//#include "pico/stdlib.h"
-//#include "pico/stdio.h"
+// #include "pico/stdlib.h"
+// #include "pico/stdio.h"
 #include "pico/cyw43_arch.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
-//#include "lwip/pbuf.h"
-//#include "lwip/tcp.h"
+// #include "lwip/pbuf.h"
+// #include "lwip/tcp.h"
 
 // Driver includes
 #include "drivers/uart/uart_driver.h"
@@ -70,12 +70,12 @@ void vTaskHeartbeat(void *pvParameters)
 /**
  * @brief This function is a task that processes incoming data from a UART queue and calculates the average flow.
  *
- * This task receives data from a queue and processes it to calculate the average flow. The incoming data is expected 
- * to be in the format "total volume,flow" and is separated by a comma. The task then sends a 
- * "clear" command to the device, which resets the total volume then it clears the queue and clears the average flow. 
+ * This task receives data from a queue and processes it to calculate the average flow. The incoming data is expected
+ * to be in the format "total volume,flow" and is separated by a comma. The task then sends a
+ * "clear" command to the device, which resets the total volume then it clears the queue and clears the average flow.
  *
- * If there is no data in the queue, the task waits for a fixed delay of 1 second before checking the queue again. 
- * 
+ * If there is no data in the queue, the task waits for a fixed delay of 1 second before checking the queue again.
+ *
  * @param pvParameters Unused parameter (required by FreeRTOS API).
  *
  * @return None.
@@ -100,7 +100,7 @@ void vTaskUART(__unused void *pvParameters)
     // Used to clear the queue and total volume on device
     BaseType_t xClearFlag = pdTRUE;
 
-    for (;;) 
+    for (;;)
     {
         // Check if there is any data in the UART queue
         if (uxQueueMessagesWaiting(xQueueUART) > 0)
@@ -121,18 +121,18 @@ void vTaskUART(__unused void *pvParameters)
                 }
             } while (cIn != '\0');
 
-             // Extract the total volume and flow rate from the buffer
+            // Extract the total volume and flow rate from the buffer
             char *xTotalVolume = strtok_r(xQueueBuffer, ",", &xQueueBuffer);
             char *xFlow = strtok_r(NULL, ",", &xQueueBuffer);
 
             // Check if the total volume is greater than 0 and the flow rate is 0
             if (atof(xFlow) == 0 && atof(xTotalVolume) > 0 && xClearFlag == pdFALSE)
             {
-                if( xAverageFlow > 0)
+                if (xAverageFlow > 0)
                 {
                     printf("<vTaskUART> Volume: %s, Average Flow: %.2f\n", xTotalVolume, xAverageFlow);
-                    char * xSendBuffer = calloc(MAX_RX_STR_LEN, sizeof(char));
-                    snprintf(xSendBuffer, sizeof(char) * MAX_RX_STR_LEN, "Volume: %s, Flow: %.2f", xTotalVolume, xAverageFlow);
+                    char *xSendBuffer = calloc(MAX_RX_STR_LEN, sizeof(char));
+                    snprintf(xSendBuffer, sizeof(char) * MAX_RX_STR_LEN, "%s,%.2f,%s", xTotalVolume, xAverageFlow, DEVICE_ID);
                     printf("<vTaskUART> Sending to TCP queue: %s\n", xSendBuffer);
                     xStreamBufferSend(xStreamBufferTCP, (void *)xSendBuffer, strlen(xSendBuffer), 0);
                     free(xSendBuffer);
@@ -140,7 +140,7 @@ void vTaskUART(__unused void *pvParameters)
                 // Clear the queue and reset the average flow
                 xQueueReset(xQueueUART);
                 xAverageFlow = 0;
-                
+
                 // Set the clear flag
                 xClearFlag = pdTRUE;
             }
@@ -180,38 +180,36 @@ void vTaskTCP(__unused void *pvParameters)
 
     TCP_CLIENT_T *tcp_client = xInitTCPClient(NULL);
 
-    if(tcp_client == NULL)
+    if (tcp_client == NULL)
     {
         printf("Failed to create TCP client.\nExiting...\n");
         exit(1);
     }
 
-    if(!xTCPClientOpen(tcp_client))
+    if (!xTCPClientOpen(tcp_client))
     {
         printf("Failed to open TCP client.\nExiting...\n");
         exit(1);
     }
 
-    for(;;)
+    for (;;)
     {
         // if you are using pico_cyw43_arch_poll, then you must poll periodically from your
         // main loop (not from a timer) to check for WiFi driver or lwIP work that needs to be done.
         cyw43_arch_poll();
         vTaskDelay(pdMS_TO_TICKS(1));
 
-        
         char *xQueueBuffer = calloc(MAX_RX_STR_LEN, sizeof(char));
 
-        if(xStreamBufferReceive(xStreamBufferTCP, (void *)xQueueBuffer, MAX_RX_STR_LEN, 0) > 0)
+        if (xStreamBufferReceive(xStreamBufferTCP, (void *)xQueueBuffer, MAX_RX_STR_LEN, 0) > 0)
         {
-
             printf("<vTaskTCP> Sending data to server: %s\n", xQueueBuffer);
 
             tcp_write(tcp_client->tcp_pcb, xQueueBuffer, strlen(xQueueBuffer), TCP_WRITE_FLAG_COPY);
             tcp_client->sent_len = strlen(xQueueBuffer);
             tcp_output(tcp_client->tcp_pcb);
 
-            while(tcp_client->sent_len > 0)
+            while (tcp_client->sent_len > 0)
             {
                 vTaskDelay(pdMS_TO_TICKS(1));
             }
